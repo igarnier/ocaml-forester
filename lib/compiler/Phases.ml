@@ -123,10 +123,12 @@ let eval (forest : State.t) =
               URI.Tbl.find_opt forest.resolver uri
             else None
           in
+          Eio.Switch.run ~name:"plugin-switch" @@ fun sw ->
           Eval.eval_tree
             ~config: forest.config
             ~source_path
             ~uri
+            ~penv: (forest.env, sw)
             tree.nodes
       )
   in
@@ -145,10 +147,12 @@ let eval_only (uri : URI.t) (forest : State.t) =
     in
     (* NOTE: Not running jobs. *)
     let Eval.{articles; jobs = _}, diagnostics =
+      Eio.Switch.run ~name:"plugin-switch" @@ fun sw ->
       Eval.eval_tree
         ~config: forest.config
         ~source_path
         ~uri
+        ~penv: (forest.env, sw)
         expanded.nodes
     in
     begin

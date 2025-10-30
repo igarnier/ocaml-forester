@@ -28,14 +28,16 @@ let expand ~forest src =
   S.run ~init_visible: Expand.initial_visible_trie @@ fun () ->
   Expand.expand ~forest code
 
-let render ~forest expanded =
+let render ~(forest : State.t) expanded =
   Result.map
     (fun expanded ->
       let Eval.{articles; _}, _ =
+        Eio.Switch.run ~name:"test-switch" @@ fun sw ->
         Eval.eval_tree
           ~config: (Config.default ())
           ~uri: (URI.of_string_exn "http://localhost/test")
           ~source_path: None
+          ~penv: (forest.env, sw)
           expanded
       in
       let () =

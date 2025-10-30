@@ -76,7 +76,9 @@ module Tape = Tape_effect.Make ()
 module Lex_env = Algaeff.Reader.Make(struct type t = Value.t String_map.t end)
 module Dyn_env = Algaeff.Reader.Make(struct type t = Value.t Symbol_map.t end)
 module Config_env = Algaeff.Reader.Make(struct type t = Config.t end)
+module Plugin_env = Algaeff.Reader.Make(struct type t = Plugin.env end)
 module Heap = Algaeff.State.Make(struct type t = Value.obj Symbol_map.t end)
+module Plugin_heap = Algaeff.State.Make(struct type t = Plugin.instance Symbol_map.t end)
 module Emitted_trees = Algaeff.State.Make(struct type t = T.content T.article list end)
 module Jobs = Algaeff.State.Make(struct type t = Job.job Range.located list end)
 module Frontmatter = Algaeff.State.Make(struct type t = T.content T.frontmatter end)
@@ -352,6 +354,40 @@ and eval_node node : Value.t =
     let artefact = T.{hash; content; sources} in
     Jobs.modify (List.cons (Range.locate_opt loc (Job.LaTeX_to_svg job)));
     emit_content_node ~loc @@ T.Artefact artefact
+  | Plugin ->
+    let plugin_name =
+      (* TODO: extra initialization parameters *)
+      let@ () = Mode_env.run ~env: Text_mode in
+      match pop_content_arg ~loc with
+      | T.Content [Text name] -> name
+      | arg ->
+        Reporter.fatal
+          ?loc: node.loc
+          (Plugin_initialization_error arg)
+    in
+    begin
+      match Plugin.find_opt plugin_name with
+      | None ->
+        Reporter.fatal
+          ?loc: node.loc
+          (Plugin_not_found plugin_name)
+      | Some plugin ->
+        let env_sw = Plugin_env.read () in
+        let instance = plugin env_sw in
+        let sym = Symbol.named ["plugin"] in
+        assert (instance.step_arity >= 0);
+        Plugin_heap.modify @@ Symbol_map.add sym instance;
+        let args = List.init instance.step_arity (fun i -> ("x" ^ string_of_int i)) in
+        let proto = List.map (fun arg -> (Strict, Some arg)) args in
+        let apply = List.map (fun arg -> {Range.loc; value = Syn.Var arg}) args in
+        let f = {Range.loc; value = Syn.Plugin_call [{loc; value = Sym sym}]} in
+        let v = Value.Clo (String_map.empty, proto, f :: apply) in
+        focus ?loc: node.loc v
+    end
+  | Plugin_call plugin ->
+    let sym = {node with value = plugin} |> Range.map eval_tape |> extract_sym in
+    let { Plugin.step_arity; step} = Symbol_map.find sym @@ Plugin_heap.get () in
+    focus_plugin ?loc step_arity step []
   | Route_asset ->
     let Range.{value = source_path; loc = path_loc} = pop_text_arg_loc ~loc in
     let uri = Asset_router.uri_of_asset ?loc: path_loc ~source_path () in
@@ -444,7 +480,8 @@ and eval_node node : Value.t =
         Reporter.fatal
           ?loc: node.loc
           (Unbound_fluid_symbol k)
-      | Some v -> focus ?loc: node.loc v
+      | Some v ->
+        focus ?loc: node.loc v
     end
   | Verbatim str ->
     emit_content_node ~loc @@ CDATA str
@@ -582,7 +619,7 @@ and focus ?loc = function
       | Content content' -> Value.Content (T.concat_compressed_content content content')
       | value -> value
     end
-  | Sym _ | Obj _ | Dx_prop _ | Dx_sequent _ | Dx_query _ | Dx_var _ | Dx_const _ as v ->
+  | Sym _ | Obj _ | Dx_prop _ | Dx_sequent _ | Dx_query _ | Dx_var _ | Dx_const _ | Plugin _ as v ->
     begin
       match process_tape () with
       | Content content when T.strip_whitespace content = T.Content [] -> v
@@ -613,8 +650,26 @@ and focus_clo ?loc rho (xs : string option binding list) body =
       begin
         match process_tape () with
         | Content nodes when T.strip_whitespace nodes = T.Content [] -> Clo (rho, xs, body)
-        | _ -> Reporter.fatal ?loc Missing_argument ~extra_remarks: [Asai.Diagnostic.loctextf "Expected %i additional arguments" (List.length xs)]
+        | _ ->
+          Reporter.fatal ?loc Missing_argument ~extra_remarks: [Asai.Diagnostic.loctextf "Expected %i additional arguments" (List.length xs)]
       end
+
+and focus_plugin ?loc arity plugin_step acc =
+  if Int.equal arity 0 then
+    begin
+      match plugin_step (List.rev acc) with
+      | Ok result -> result
+      | Error msg -> Reporter.fatal ?loc (Plugin_step_error (Printf.sprintf "focus_plugin: %s" msg))
+    end
+  else
+    (
+      match Tape.pop_arg_opt () with
+      | Some arg ->
+        let v = eval_tape arg.value in
+        focus_plugin ?loc (arity - 1) plugin_step (v :: acc)
+      | None ->
+        Reporter.fatal ?loc Missing_argument ~extra_remarks: [Asai.Diagnostic.loctextf "Expected %i additional arguments" arity]
+    )
 
 and emit_content_nodes ~loc content =
   focus ?loc @@ Content (T.Content (T.compress_nodes content))
@@ -653,6 +708,7 @@ let eval_tree
     ~(config : Config.t)
     ~(uri : URI.t)
     ~(source_path : string option)
+    ~(penv : Plugin.env)
     (tree : Syn.t)
     : result * Reporter.diagnostic list
   =
@@ -669,9 +725,11 @@ let eval_tree
       let@ () = Emitted_trees.run ~init: [] in
       let@ () = Jobs.run ~init: [] in
       let@ () = Heap.run ~init: Symbol_map.empty in
+      let@ () = Plugin_heap.run ~init: Symbol_map.empty in
       let@ () = Lex_env.run ~env: String_map.empty in
       let@ () = Dyn_env.run ~env: Symbol_map.empty in
       let@ () = Config_env.run ~env: config in
+      let@ () = Plugin_env.run ~env: penv in
       let main = eval_tree_inner ~uri tree in
       let side = Emitted_trees.get () in
       let jobs = Jobs.get () in

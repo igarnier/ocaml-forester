@@ -15,6 +15,7 @@ module Symbol_map = Map.Make(Symbol)
 type t =
   | Content of T.content
   | Clo of (t String_map.t [@opaque]) * string option binding list * Syn.t
+  | Plugin of Symbol.t
   | Dx_prop of (string, T.content T.vertex) Datalog_expr.prop
   | Dx_sequent of (string, T.content T.vertex) Datalog_expr.sequent
   | Dx_query of (string, T.content T.vertex) Datalog_expr.query

@@ -38,6 +38,9 @@ let version =
 
 let build ~env _ config_filename dev no_theme =
   Reporter.easy_run @@ fun () ->
+  Seq.iter (fun s ->
+      Logs.info (fun m -> m "Loaded plugin \"%s\"" s)
+    ) (Hashtbl.to_seq_keys Plugin.plugin_table);
   let config = Config_parser.parse_forest_config_file config_filename in
   Logs.debug (fun m -> m "Parsed config file %s" config_filename);
   let forest = Driver.batch_run ~env ~dev ~config in
@@ -295,6 +298,7 @@ let () =
   Random.self_init ();
   Printexc.record_backtrace true;
   Logs.set_reporter (Logs_fmt.reporter ());
+  Sites.Plugins.Plugins.load_all ();
   let@ env = Eio_main.run in
   let@ () = Forester_core.Reporter.easy_run in
   exit @@ Cmd.eval ~catch: false @@ cmd ~env

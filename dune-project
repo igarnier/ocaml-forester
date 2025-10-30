@@ -35,7 +35,8 @@
  (name forester)
  (synopsis "A tool for tending mathematical forests")
  (sites
-  (share theme))
+  (share theme)
+  (lib plugins))
  (depends
   (menhir
    (>= 20240715))
