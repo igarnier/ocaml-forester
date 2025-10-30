@@ -30,6 +30,8 @@ type node =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Plugin
+  | Plugin_call of t
   | Ref
   | Title
   | Parent
@@ -71,6 +73,7 @@ let map f node =
   | Get t -> Get (f t)
   | Xml_tag (q, qs, t) -> Xml_tag (q, List.map (fun (q, t) -> q, f t) qs, f t)
   | Call (t, s) -> Call (f t, s)
+  | Plugin_call t -> Plugin_call (f t)
   | Object {self; methods} ->
     Object {self; methods = List.map (fun (str, t) -> str, f t) methods}
   | Patch {obj; self; super; methods} ->
@@ -89,6 +92,7 @@ let map f node =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Plugin
   | Ref
   | Title
   | Parent
@@ -118,6 +122,7 @@ let children (node : node Range.located) =
   | Get t -> t
   | Xml_tag (_, qs, t) -> List.concat_map snd qs @ t
   | Call (t, _) -> t
+  | Plugin_call t -> t
   | Object {methods; _} ->
     List.concat_map snd methods
   | Patch {obj; methods; _} ->
@@ -137,6 +142,7 @@ let children (node : node Range.located) =
   | Results_of_query
   | Transclude
   | Embed_tex
+  | Plugin
   | Ref
   | Title
   | Parent

@@ -346,6 +346,7 @@ let builtins =
               ["figcaption"], Syn.Prim `Figcaption;
               ["transclude"], Syn.Transclude;
               ["tex"], Syn.Embed_tex;
+              ["plugin"], Syn.Plugin;
               ["ref"], Syn.Ref;
               ["title"], Syn.Title;
               ["taxon"], Syn.Taxon;

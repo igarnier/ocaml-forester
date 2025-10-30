@@ -17,5 +17,6 @@ val eval_tree :
   config: Config.t ->
   uri: URI.t ->
   source_path: string option ->
+  penv: Plugin.env ->
   Syn.t ->
   result * Reporter.diagnostic list

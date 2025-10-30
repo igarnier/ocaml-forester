@@ -6,6 +6,11 @@
  (module theme_site)
  (sites forester))
 
+(generate_sites_module
+ (module sites)
+ (plugins
+  (forester plugins)))
+
 (install
  (section
   (site
@@ -22,7 +27,7 @@
   (:standard -g))
  (preprocess
   (pps ppx_deriving.show))
- (modules main theme_site)
+ (modules main theme_site sites)
  (libraries
   forester.prelude
   forester.core
@@ -30,12 +35,14 @@
   forester.language_server
   forester.server
   forester.compiler
+  compiler-libs.native-toplevel
   logs
   logs.fmt
   logs.cli
   cmdliner
   dune-build-info
   dune-site
+  dune-site.plugins
   asai
   eio
   eio.core

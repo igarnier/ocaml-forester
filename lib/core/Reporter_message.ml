@@ -56,6 +56,10 @@ type t =
   | Uninterpreted_config_options of string list list
   | Using_default_option of string list
   | Required_config_option of string
+  | Plugin_name_already_registered of string
+  | Plugin_initialization_error of Types.content
+  | Plugin_not_found of string
+  | Plugin_step_error of string
 [@@deriving show]
 
 let default_severity : t -> Asai.Diagnostic.severity = function
@@ -90,6 +94,10 @@ let default_severity : t -> Asai.Diagnostic.severity = function
   | Uninterpreted_config_options _ -> Warning
   | Using_default_option _ -> Info
   | Required_config_option _ -> Error
+  | Plugin_name_already_registered _ -> Error
+  | Plugin_initialization_error _ -> Error
+  | Plugin_not_found _ -> Error
+  | Plugin_step_error _ -> Error
 
 let short_code : t -> string = function
   | Import_not_found _ -> "import_not_found"
@@ -123,6 +131,10 @@ let short_code : t -> string = function
   | Uninterpreted_config_options _ -> "unknown_config_option"
   | Using_default_option _ -> "using_default_option"
   | Required_config_option _ -> "required_config_option"
+  | Plugin_name_already_registered _ -> "plugin_name_already_registered"
+  | Plugin_initialization_error _ -> "plugin_initialization_error"
+  | Plugin_not_found _ -> "plugin_not_found"
+  | Plugin_step_error _ -> "plugin_step_error"
 
 let this_is : Value.t -> string = function
   | Value.Content _ -> "content"
@@ -134,6 +146,7 @@ let this_is : Value.t -> string = function
   | Value.Dx_const _ -> "a datalog constant"
   | Value.Sym _ -> "a symbol"
   | Value.Obj _ -> "an object"
+  | Value.Plugin _ -> "a plugin instance"
 
 let show_expected_value : expected_value -> string = function
   | Content -> "content"
@@ -182,6 +195,7 @@ let default_text : t -> Asai.Diagnostic.text = function
         | Some Value.Dx_const _
         | Some Value.Sym _
         | Some Value.Obj _
+        | Some Value.Plugin _
         | None ->
           Asai.Diagnostic.textf ""
       in
@@ -257,4 +271,12 @@ let default_text : t -> Asai.Diagnostic.text = function
   | IO_error
   | Log
   | Missing_argument ->
-    Asai.Diagnostic.text ""
+    Asai.Diagnostic.textf ""
+  | Plugin_name_already_registered name ->
+    Asai.Diagnostic.textf "A plugin with name %s was already registered" name
+  | Plugin_initialization_error content ->
+    Asai.Diagnostic.textf "Plugin initialization error: expected a name, got: @,%a" Types.pp_content content
+  | Plugin_not_found name ->
+    Asai.Diagnostic.textf "No plugin with name \"%s\" was found" name
+  | Plugin_step_error msg ->
+    Asai.Diagnostic.textf "Plugin step error: @,%s" msg

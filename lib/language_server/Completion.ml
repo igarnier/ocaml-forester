@@ -179,6 +179,7 @@ let kind
   | Prim _
   | Transclude
   | Embed_tex
+  | Plugin
   | Title
   | Parent
   | Taxon
@@ -202,6 +203,7 @@ let kind
   | Object _
   | Patch _
   | Call (_, _)
+  | Plugin_call _
   | Results_of_query
   | Dx_sequent (_, _)
   | Dx_query (_, _, _)

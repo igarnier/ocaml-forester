@@ -87,8 +87,7 @@ let json_manifest ~dev ~(forest : State.t) : string =
   let articles =
     let@ tree = Seq.filter_map @~ Forest.to_seq_values forest.index in
     let@ evaluated = Option.bind @@ Tree.to_evaluated tree in
-    if evaluated.include_in_manifest
-    then Tree.to_article tree
+    if evaluated.include_in_manifest then Tree.to_article tree
     else None
   in
   articles
