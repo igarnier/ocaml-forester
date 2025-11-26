@@ -42,12 +42,11 @@ end
 
 open struct module A = Atom end
 
-let get_date_range (article : _ T.article) : (Human_datetime.t * Human_datetime.t) option =
-  let dates = List.sort Human_datetime.compare article.frontmatter.dates in
-  try
-    Some (List.hd dates, List.hd (List.rev dates))
-  with
-    | _ -> None
+let get_date_range (dates : Human_datetime.t list) : (Human_datetime.t * Human_datetime.t) option =
+  let sorted = List.sort Human_datetime.compare dates in
+  let@ first = Option.bind @@ List.nth_opt sorted 0 in
+  let@ last = Option.bind @@ List.nth_opt (List.rev sorted) 0 in
+  Some (first, last)
 
 let render_title forest ?scope (frontmatter : _ T.frontmatter) =
   A.title
@@ -57,18 +56,20 @@ let render_title forest ?scope (frontmatter : _ T.frontmatter) =
   State.get_expanded_title ?scope frontmatter forest
 
 let render_dates_exn dates =
-  let sorted_dates = List.sort Human_datetime.compare dates in
-  let oldest, newest = List.hd sorted_dates, List.hd (List.rev sorted_dates) in
-  A.null
-    [
-      A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 oldest;
-      A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 newest
-    ]
+  match get_date_range dates with
+  | None -> A.null []
+  | Some (oldest, newest) ->
+    A.null
+      [
+        A.published [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 oldest;
+        A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp_rfc_3399 newest
+      ]
 
 let render_updated_date dates =
   let sorted_dates = List.sort Human_datetime.compare dates in
-  let newest = List.hd (List.rev sorted_dates) in
-  A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
+  match List.nth_opt (List.rev sorted_dates) 0 with
+  | None -> A.null []
+  | Some newest -> A.updated [] "%s" @@ Format.asprintf "%a" Human_datetime.pp newest
 
 let render_dates dates =
   try render_dates_exn dates with _ -> A.null []
